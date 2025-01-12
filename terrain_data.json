@@ -1,0 +1,9 @@
+{
+    "heightmap": 0.15,
+    "texture": 0.48,
+    "roughness": 0.56,
+    "biome_type": 0.3,
+    "object_placement": 0.53,
+    "water_features": 0.48,
+    "lighting_atmosphere": 0.52
+}
