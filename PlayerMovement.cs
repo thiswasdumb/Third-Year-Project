@@ -13,6 +13,7 @@ public class PlayerMovement : MonoBehaviour
 
     // Ground check parameters
     public float groundCheckDistance = 1.1f; // Distance for ground detection
+    public float groundCheckOffset = 0.5f; // Forward offset for ground check
     public LayerMask groundLayer; // Assign your terrain layer here
 
     private bool isGrounded;
@@ -55,35 +56,66 @@ public class PlayerMovement : MonoBehaviour
 
     void FixedUpdate()
     {
-        // Ground check
-        isGrounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundLayer);
+        // Perform advanced ground check
+        isGrounded = AdvancedGroundCheck();
 
         if (isGrounded)
         {
             // Get movement input
             float moveHorizontal = Input.GetAxis("Horizontal"); // A/D or Left/Right
             float moveVertical = Input.GetAxis("Vertical"); // W/S or Up/Down
-
-            // Calculate movement direction
             Vector3 movementInput = (transform.forward * moveVertical + transform.right * moveHorizontal).normalized;
 
-            // Check if player is moving
-            isPlayerMoving = movementInput.magnitude > 0;
-
-            // Apply movement using Rigidbody velocity
-            rb.velocity = new Vector3(movementInput.x * speed, rb.velocity.y, movementInput.z * speed);
-
-            // Handle audio playback
-            HandleAudioPlayback(isPlayerMoving);
+            if (movementInput.magnitude > 0)
+            {
+                rb.MovePosition(rb.position + movementInput * speed * Time.fixedDeltaTime);
+                HandleAudioPlayback(true); // Start music when moving
+            }
+            else
+            {
+                HandleAudioPlayback(false); // Stop music when not moving
+            }
         }
         else
         {
-            // Simulate gravity if not grounded
-            rb.AddForce(Vector3.down * 20f, ForceMode.Acceleration);
-
-            // Pause audio if not grounded
-            HandleAudioPlayback(false);
+            // Apply sticky gravity to keep the player grounded
+            rb.AddForce(Vector3.down * 50f, ForceMode.Force);
+            Debug.LogWarning("Player is airborne.");
+            HandleAudioPlayback(false); // Stop music when airborne
         }
+    }
+
+    private bool AdvancedGroundCheck()
+    {
+        // Perform multiple raycasts to improve ground detection
+        Vector3 origin = transform.position;
+
+        // Raycast directly downward
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hitCenter, groundCheckDistance, groundLayer))
+        {
+            Debug.Log($"Grounded (center): {hitCenter.point}");
+            return true;
+        }
+
+        // Raycast slightly forward for steep slopes
+        Vector3 forwardOrigin = origin + transform.forward * groundCheckOffset;
+        if (Physics.Raycast(forwardOrigin, Vector3.down, out RaycastHit hitForward, groundCheckDistance, groundLayer))
+        {
+            Debug.Log($"Grounded (forward): {hitForward.point}");
+            return true;
+        }
+
+        // Raycast slightly backward for steep descents
+        Vector3 backwardOrigin = origin - transform.forward * groundCheckOffset;
+        if (Physics.Raycast(backwardOrigin, Vector3.down, out RaycastHit hitBackward, groundCheckDistance, groundLayer))
+        {
+            Debug.Log($"Grounded (backward): {hitBackward.point}");
+            return true;
+        }
+
+        // If all raycasts fail, return false
+        Debug.LogWarning("Not grounded!");
+        return false;
     }
 
     private void PositionOnTerrain()
@@ -101,50 +133,23 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-private void SelectRandomSong()
-{
-    Debug.Log("Loading songs from Resources folder...");
-    AudioClip[] audioClips = Resources.LoadAll<AudioClip>("cs310_music");
-
-    if (audioClips.Length > 0)
+    private void SelectRandomSong()
     {
-        audioSource.clip = audioClips[Random.Range(0, audioClips.Length)];
-        Debug.Log($"Selected song: {audioSource.clip.name}");
+        Debug.Log("Loading songs from Resources folder...");
+        AudioClip[] audioClips = Resources.LoadAll<AudioClip>("cs310_music");
 
-        // Test playback immediately
-        audioSource.Play();
-        Debug.Log("Test playback started.");
-    }
-    else
-    {
-        Debug.LogError("No audio files found in Resources/cs310_music.");
-    }
-}
-
-
-
-
-    private IEnumerator LoadAudioClip(string path)
-{
-    string url = "file://" + path;
-    Debug.Log($"Requesting audio file from: {url}");
-
-    using (var www = UnityEngine.Networking.UnityWebRequestMultimedia.GetAudioClip(url, UnityEngine.AudioType.MPEG))
-    {
-        yield return www.SendWebRequest();
-
-        if (www.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
+        if (audioClips.Length > 0)
         {
-            audioSource.clip = UnityEngine.Networking.DownloadHandlerAudioClip.GetContent(www);
-            Debug.Log($"Audio clip loaded successfully: {audioSource.clip.name}");
+            audioSource.clip = audioClips[Random.Range(0, audioClips.Length)];
+            Debug.Log($"Selected song: {audioSource.clip.name}");
+            audioSource.Play();
+            Debug.Log("Test playback started.");
         }
         else
         {
-            Debug.LogError($"Failed to load audio file. Error: {www.error}");
+            Debug.LogError("No audio files found in Resources/cs310_music.");
         }
     }
-}
-
 
     private void HandleAudioPlayback(bool isMoving)
     {
@@ -170,5 +175,7 @@ private void SelectRandomSong()
                 Debug.Log("Audio playback paused.");
             }
         }
+
+        Debug.Log($"AudioSource status: IsPlaying = {audioSource.isPlaying}, Clip = {audioSource.clip.name}");
     }
 }
